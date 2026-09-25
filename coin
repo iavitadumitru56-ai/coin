@@ -1,4 +1,3 @@
-
 local Library = {}
 local TS = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
@@ -363,7 +362,7 @@ local function UpdateScale(val)
         Library.ScaleObj.Scale = val
     end
     if Library.ScaleWrapper then
-        Library.ScaleWrapper.Size = UDim2.new(1 / val, 0, 1 / val, -45 / val)
+        Library.ScaleWrapper.Size = UDim2.new(1 / val, 0, 1 / val, 0)
     end
 end
 
@@ -799,10 +798,10 @@ local function MakeDraggable(topbar, frame)
     end)
 end
 
-local function MakeResizable(handle, frame)
+local function MakeResizable(handle, frame, minCustomSize)
     local dragging, dragStart, startSize
-    local MinSize = Vector2.new(500, 350)
-    local MaxSize = Vector2.new(1000, 800)
+    local MinSize = minCustomSize or Vector2.new(500, 350)
+    local MaxSize = Vector2.new(1200, 900)
     
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1153,7 +1152,27 @@ function Library:CreateWindow(Settings)
         WatermarkConfig.Enabled = false
     end
 
-    local CustomIconID = Config.CustomIcon
+    -- =====================================================================
+    -- РАСЧЕТ РАЗМЕРОВ ИКОНКИ И САЙДБАРА ("ЧЕМ БОЛЬШЕ ИКОНКА, ТЕМ БОЛЬШЕ БИБЛИОТЕКА")
+    -- =====================================================================
+    local CustomLogoAsset = Config.CustomIcon or Config.Logo or Config.Icon or "rbxassetid://10884488899"
+    local RawLogoSize = Config.LogoSize or Vector2.new(65, 65)
+    local LogoSize = (typeof(RawLogoSize) == "Vector2" and RawLogoSize) or Vector2.new(tonumber(RawLogoSize) or 65, tonumber(RawLogoSize) or 65)
+    
+    -- Сайдбар автоматически расширяется под размер иконки + безопасные отступы
+    local SidebarWidth = math.max(175, math.floor(LogoSize.X + 45))
+    local LogoContainerHeight = math.max(65, math.floor(LogoSize.Y + 28))
+
+    local VP = workspace.CurrentCamera.ViewportSize
+    local IsMobile = UIS.TouchEnabled and (VP.X < 850 or VP.Y < 600)
+    
+    -- Размер всей библиотеки растёт вместе с логотипом:
+    local BaseWindowX = SidebarWidth + 580
+    local BaseWindowY = math.max(540, LogoContainerHeight + 380)
+
+    local WindowSizeX = IsMobile and math.clamp(VP.X - 40, 320, 500) or BaseWindowX
+    local WindowSizeY = IsMobile and math.clamp(VP.Y - 40, 220, 340) or BaseWindowY
+    local WindowSize = UDim2.fromOffset(WindowSizeX, WindowSizeY)
 
     local ScreenGui = Create("ScreenGui", {
         Name = "MainUI",
@@ -1361,7 +1380,7 @@ function Library:CreateWindow(Settings)
         end
 
         local Order = 1
-        local titleIcon = (CustomIconID and CustomIconID ~= "") and CustomIconID or "rbxassetid://10884488899"
+        local titleIcon = (CustomLogoAsset and CustomLogoAsset ~= "") and CustomLogoAsset or "rbxassetid://10884488899"
         
         if WatermarkConfig.Title then
             CreateHudItem(Order, titleIcon, function() return Title end)
@@ -1547,12 +1566,6 @@ function Library:CreateWindow(Settings)
         end)
     end
 
-    local VP = workspace.CurrentCamera.ViewportSize
-    local IsMobile = UIS.TouchEnabled and (VP.X < 850 or VP.Y < 600)
-    local WindowSizeX = IsMobile and math.clamp(VP.X - 40, 300, 480) or 780
-    local WindowSizeY = IsMobile and math.clamp(VP.Y - 40, 200, 320) or 540
-    local WindowSize = UDim2.fromOffset(WindowSizeX, WindowSizeY)
-
     local WindowContainer = Create("Frame", {
         Name = "WindowContainer",
         Parent = ScreenGui,
@@ -1563,9 +1576,7 @@ function Library:CreateWindow(Settings)
         ZIndex = 1
     })
 
-    -- ==========================================
-    --  МАСКОТ / ДЕКОРАЦИЯ СВЕРХУ (КАРТИНКА / ВИДЕО)
-    -- ==========================================
+    -- МАСКОТ
     if Config.Mascot and (Config.Mascot.Enabled ~= false) then
         local mCfg = Config.Mascot
         local mType = string.lower(mCfg.Type or "Image")
@@ -1667,61 +1678,24 @@ function Library:CreateWindow(Settings)
         ZIndex = 2000,
         ThemeTag = "TextDark"
     })
-    MakeResizable(ResizeBtn, WindowContainer)
+    MakeResizable(ResizeBtn, WindowContainer, Vector2.new(SidebarWidth + 280, LogoContainerHeight + 250))
 
+    -- Верхняя планка (шапка): теперь без текстового названия, только кнопка закрытия и область перетаскивания
     local TopBar = Create("Frame", {
         Parent = Main,
-        Size = UDim2.new(1, 0, 0, 45),
+        Size = UDim2.new(1, 0, 0, 36),
         BackgroundTransparency = 1,
-        ZIndex = 5
+        ZIndex = 20
     })
     MakeDraggable(TopBar, WindowContainer)
     
-    Create("Frame", {
-        Parent = TopBar,
-        Size = UDim2.new(1, 0, 0, 1),
-        Position = UDim2.new(0, 0, 1, 0),
-        BackgroundColor3 = SelectedTheme.TextDark,
-        BackgroundTransparency = 0.8,
-        BorderSizePixel = 0,
-        ZIndex = 6,
-        ThemeTag = "TextDark"
-    })
-    
-    local TitleOffsetX = 18
-    if CustomIconID and CustomIconID ~= "" then
-        TitleOffsetX = 48
-        local TopIcon = Create("ImageLabel", {
-            Parent = TopBar,
-            Size = UDim2.new(0, 26, 0, 26),
-            Position = UDim2.new(0, 16, 0.5, -13),
-            BackgroundTransparency = 1,
-            ZIndex = 6
-        })
-        SetImageAsync(TopIcon, "Image", CustomIconID)
-    end
-
-    Create("TextLabel", {
-        Parent = TopBar,
-        Size = UDim2.new(1, -40, 1, 0),
-        Position = UDim2.new(0, TitleOffsetX, 0, 0),
-        BackgroundTransparency = 1,
-        Text = Title,
-        Font = Library.GlobalFontBold,
-        TextColor3 = SelectedTheme.Text,
-        TextSize = 16,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 6,
-        ThemeTag = "Text"
-    })
-    
     local Close = Create("TextButton", {
         Parent = TopBar,
-        Size = UDim2.new(0, 45, 1, 0),
-        Position = UDim2.new(1, -45, 0, 0),
+        Size = UDim2.new(0, 36, 1, 0),
+        Position = UDim2.new(1, -36, 0, 0),
         BackgroundTransparency = 1,
         Text = "",
-        ZIndex = 6
+        ZIndex = 25
     })
     
     local Cross1 = Create("Frame", {
@@ -1731,7 +1705,7 @@ function Library:CreateWindow(Settings)
         Size = UDim2.new(0, 12, 0, 2),
         BackgroundColor3 = SelectedTheme.Text,
         Rotation = 45,
-        ZIndex = 6,
+        ZIndex = 26,
         ThemeTag = "Text"
     })
     AddCorner(Cross1, 2)
@@ -1743,7 +1717,7 @@ function Library:CreateWindow(Settings)
         Size = UDim2.new(0, 12, 0, 2),
         BackgroundColor3 = SelectedTheme.Text,
         Rotation = -45,
-        ZIndex = 6,
+        ZIndex = 26,
         ThemeTag = "Text"
     })
     AddCorner(Cross2, 2)
@@ -1763,8 +1737,8 @@ function Library:CreateWindow(Settings)
     Library.ScaleWrapper = Create("Frame", {
         Name = "ScaleWrapper",
         Parent = Main,
-        Size = UDim2.new(1 / Library.GlobalScale, 0, 1 / Library.GlobalScale, -45 / Library.GlobalScale),
-        Position = UDim2.new(0, 0, 0, 45),
+        Size = UDim2.new(1 / Library.GlobalScale, 0, 1 / Library.GlobalScale, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
         ZIndex = 5
     })
@@ -1774,23 +1748,65 @@ function Library:CreateWindow(Settings)
         Scale = Library.GlobalScale
     })
 
-    local TabContainer = Create("ScrollingFrame", {
+    -- =====================================================================
+    -- ЛЕВАЯ КОЛОНКА (САЙДБАР) В СТИЛЕ СНИМКА (БОЛЬШАЯ ИКОНКА СВЕРХУ)
+    -- =====================================================================
+    local SidebarFrame = Create("Frame", {
+        Name = "Sidebar",
         Parent = Library.ScaleWrapper,
-        Size = UDim2.new(0.22, 0, 1, -78),
-        Position = UDim2.new(0.02, 0, 0, 15),
+        Size = UDim2.new(0, SidebarWidth, 1, -24),
+        Position = UDim2.new(0, 14, 0, 12),
         BackgroundColor3 = SelectedTheme.Second,
         BackgroundTransparency = 0.5,
+        ZIndex = 5,
+        ClipsDescendants = true,
+        ThemeTag = "Second"
+    })
+    AddCorner(SidebarFrame, 8)
+    local SidebarStroke = AddStroke(SidebarFrame, SelectedTheme)
+    SidebarStroke.Transparency = 0.8
+
+    -- Блок с большой иконкой (без текста!)
+    local LogoHolder = Create("Frame", {
+        Name = "LogoHolder",
+        Parent = SidebarFrame,
+        Size = UDim2.new(1, 0, 0, LogoContainerHeight),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        ZIndex = 6
+    })
+    MakeDraggable(LogoHolder, WindowContainer)
+
+    -- Сама большая иконка (ScaleType = Fit гарантирует, что она никогда не выйдет за рамки)
+    local BigLogoImage = Create("ImageLabel", {
+        Name = "MainLogo",
+        Parent = LogoHolder,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(math.min(LogoSize.X, SidebarWidth - 20), LogoSize.Y),
+        BackgroundTransparency = 1,
+        ImageColor3 = SelectedTheme.Text,
+        ScaleType = Enum.ScaleType.Fit,
+        ZIndex = 7,
+        ThemeTag = "Text"
+    })
+    SetImageAsync(BigLogoImage, "Image", CustomLogoAsset)
+
+    -- Контейнер для вкладок (располагается прямо под большой иконкой)
+    local TabContainer = Create("ScrollingFrame", {
+        Name = "TabContainer",
+        Parent = SidebarFrame,
+        Size = UDim2.new(1, -12, 1, -(LogoContainerHeight + 62)),
+        Position = UDim2.new(0, 6, 0, LogoContainerHeight + 4),
+        BackgroundTransparency = 1,
         ScrollBarThickness = 0,
         BorderSizePixel = 0,
-        ZIndex = 5,
-        ThemeTag = "Second",
+        ZIndex = 6,
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y
     })
-    AddCorner(TabContainer, 8)
-
-    local TabContainerStroke = AddStroke(TabContainer, SelectedTheme)
-    TabContainerStroke.Transparency = 0.8
+    
     Create("UIListLayout", {
         Parent = TabContainer,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -1798,21 +1814,22 @@ function Library:CreateWindow(Settings)
     })
     Create("UIPadding", {
         Parent = TabContainer,
-        PaddingTop = UDim.new(0, 8),
-        PaddingBottom = UDim.new(0, 8),
-        PaddingLeft = UDim.new(0, 6),
-        PaddingRight = UDim.new(0, 6)
+        PaddingTop = UDim.new(0, 4),
+        PaddingBottom = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 2),
+        PaddingRight = UDim.new(0, 2)
     })
 
+    -- Профиль внизу сайдбара
     local ProfileFrame = Create("Frame", {
-        Parent = Library.ScaleWrapper,
-        Size = UDim2.new(0.22, 0, 0, 40),
-        Position = UDim2.new(0.02, 0, 1, -55),
-        BackgroundColor3 = SelectedTheme.Second,
+        Parent = SidebarFrame,
+        Size = UDim2.new(1, -12, 0, 42),
+        Position = UDim2.new(0, 6, 1, -48),
+        BackgroundColor3 = SelectedTheme.Main,
         BackgroundTransparency = 0.5,
         BorderSizePixel = 0,
-        ZIndex = 5,
-        ThemeTag = "Second"
+        ZIndex = 6,
+        ThemeTag = "Main"
     })
     AddCorner(ProfileFrame, 8)
     AddStroke(ProfileFrame, SelectedTheme).Transparency = 0.8
@@ -1828,7 +1845,7 @@ function Library:CreateWindow(Settings)
         Position = UDim2.new(0, 6, 0.5, -14),
         BackgroundTransparency = 1,
         Image = AvatarImg,
-        ZIndex = 6
+        ZIndex = 7
     })
     AddCorner(Avatar, 100)
     
@@ -1842,7 +1859,7 @@ function Library:CreateWindow(Settings)
         TextColor3 = SelectedTheme.Text,
         TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 6,
+        ZIndex = 7,
         TextTruncate = Enum.TextTruncate.AtEnd,
         ThemeTag = "Text"
     })
@@ -1856,15 +1873,16 @@ function Library:CreateWindow(Settings)
         TextColor3 = SelectedTheme.TextDark,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 6,
+        ZIndex = 7,
         TextTruncate = Enum.TextTruncate.AtEnd,
         ThemeTag = "TextDark"
     })
 
+    -- Контейнер страниц (справа от сайдбара)
     local PageContainer = Create("Frame", {
         Parent = Library.ScaleWrapper,
-        Size = UDim2.new(0.72, 0, 1, -30),
-        Position = UDim2.new(0.26, 0, 0, 15),
+        Size = UDim2.new(1, -(SidebarWidth + 38), 1, -48),
+        Position = UDim2.new(0, SidebarWidth + 24, 0, 36),
         BackgroundTransparency = 1,
         ZIndex = 5,
         ClipsDescendants = true
